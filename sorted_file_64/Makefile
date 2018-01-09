@@ -19,4 +19,4 @@ bf:
 
 .PHONY: clean
 clean:
-	rm ./build/*
+	rm -f ./build/*
