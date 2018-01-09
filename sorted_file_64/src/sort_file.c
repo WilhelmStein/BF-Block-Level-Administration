@@ -136,6 +136,39 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record)
 }
 
 
+static bool compareRecord(const Record * const ra, const Record * const rb, const int fieldNo)
+{
+	switch(fieldNo)
+	{
+		case 0 :
+			return (ra->id < rb->id);
+		case 1 :
+			return (strcmp(ra->name, rb->name) < 0);
+		case 2 :
+			return (strcmp(ra->surname, rb->surname) < 0);
+		default:
+			return (strcmp(ra->city, rb->city) < 0);
+	}
+}
+
+static int partition(const char *  const blockData[], const int beg, const int end)
+{	
+	const int last = (* (int *) blockData[RECORDS]) - 1;
+	Record * pivot = (Record *) &blockData[RECORD(last)];
+
+
+}
+
+static void qsort(const char *  const blockData[], const int beg, const int end)
+{
+	if (beg < end)
+	{
+		int piv = partition(blockData, end, beg);
+		qsort(blockData, beg, piv - 1);
+		qsort(blockData, piv + 1, end);
+	}
+}
+
 SR_ErrorCode SR_SortedFile(
 	const char* input_filename,
 	const char* output_filename,
