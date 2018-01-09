@@ -1,5 +1,5 @@
-./build
-./.vscode
+./build/*
+./.vscode/*
 ./Makefile
 ./bin
 ./examples
