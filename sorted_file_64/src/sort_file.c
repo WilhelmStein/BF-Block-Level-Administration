@@ -176,7 +176,49 @@ SR_ErrorCode SR_SortedFile(
 	int bufferSize)
 {
 
+	for (int i = 0; i < bufferSize; i++) {
+		//quicksort
+	}
+
+	int tempfd;
+	SR_OpenFile("tempFile", &tempfd);
+
+
 	return SR_OK;
+}
+
+static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
+
+	SR_CreateFile("tempFileMerge");
+	int newfileDesc;
+	SR_OpenFile("tempFileMerge", &newfileDesc);
+
+	char **blockArray = malloc(bufferSize * sizeof(char *));
+	
+
+	//Initialization
+	int index = startIndex;
+	int i;
+	for (i = 0; i < bufferSize - 1; i++) {
+		BF_Block *block;
+		BF_Block_Init(&block);
+		CALL_OR_EXIT(BF_GetBlock(fileDesc, index, block));
+		blockArray[i] = BF_Block_GetData(block);
+		index += maxBlocks;
+	}
+	BF_Block *block;
+	BF_Block_Init(&block);
+	CALL_OR_EXIT(BF_AllocateBlock(newfileDesc, block));
+	blockArray[i] = BF_Block_GetData(block);
+
+
+
+}
+
+static int findMin(char **blockArray, int bufferSize, int fieldNo) {
+	for (int i = 0; i < bufferSize - 1; i++) {
+
+	}
 }
 
 // Utility Function:
