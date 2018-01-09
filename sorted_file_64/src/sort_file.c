@@ -188,35 +188,35 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 		char * data = BF_Block_GetData(block);
 		for (int i = 0; i < (int) data[RECORDS]; i++)
 		{
-			Record * record = (Record *) data[RECORD(i)];
+			Record * record = (Record *) &data[RECORD(i)];
 			int whitespace;
 
 			printf("|%d", (i + 1));
 			whitespace = 11 - padding(i + 1);
-			for (int i = 0; i < whitespace; i++) printf(' ');
+			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("|%d", record->id);
 			whitespace = 11 - padding(record->id);
-			for (int i = 0; i < whitespace; i++) printf(' ');
+			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("|%s", record->name);
 			whitespace = 15 - strlen(record->name);
-			for (int i = 0; i < whitespace; i++) printf(' ');
+			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("|%s", record->surname);
 			whitespace = 20 - strlen(record->surname);
-			for (int i = 0; i < whitespace; i++) printf(' ');
+			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("|%s", record->city);
 			whitespace = 20 - strlen(record->city);
-			for (int i = 0; i < whitespace; i++) printf(' ');
+			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("\n+-----------+-----------+---------------+--------------------+--------------------+\n");
 		}
 
 		CALL_OR_EXIT(BF_UnpinBlock(block));
 
-		BF_Block_Destroy(block);
+		BF_Block_Destroy(&block);
 	}
 
 	return SR_OK;
