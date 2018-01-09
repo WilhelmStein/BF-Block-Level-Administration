@@ -111,11 +111,6 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) {
 
 		memcpy((Record *)&data[RECORD(0)], &record, sizeof(Record));
 
-		printf("id : %d\n", (int)data[RECORD(0) + 0]);
-		printf("name : %s\n", (char *)&data[RECORD(0) + 4]);
-		printf("surname : %s\n", (char *)&data[RECORD(0) + 4 + 15]);
-		printf("city : %s\n", (char *)&data[RECORD(0) + 4 + 15 + 20]);
-
 		BF_Block_SetDirty(newBlock);
 		BF_UnpinBlock(newBlock);
 		BF_Block_Destroy(&newBlock);
@@ -125,11 +120,6 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) {
 		int records = (int)data[RECORDS];
 		
 		memcpy((Record *)&data[RECORD(records)], &record, sizeof(Record));
-
-		printf("id : %d\n", (int)data[RECORD(records) + 0]);
-		printf("name : %s\n", (char *)&data[RECORD(records) + 4]);
-		printf("surname : %s\n", (char *)&data[RECORD(records) + 4 + 15]);
-		printf("city : %s\n", (char *)&data[RECORD(records) + 4 + 15 + 20]);
 
 		records += 1;
 		memcpy((int *)&data[RECORDS], &records, sizeof(int));
@@ -174,11 +164,11 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 	int blocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &blocks));
 
-	printf("+-----------+-----------+---------------+--------------------+--------------------+\n");
-	printf("|INDEX      |ID         |NAME           |SURNAME             |CITY                |\n");
-	printf("+-----------+-----------+---------------+--------------------+--------------------+\n");
+	printf("+-----------+---------------+--------------------+--------------------+\n");
+	printf("|ID         |NAME           |SURNAME             |CITY                |\n");
+	printf("+-----------+---------------+--------------------+--------------------+\n");
 
-	for (int i = 0; i < blocks; i++)
+	for (int i = 1; i < blocks; i++)
 	{
 		BF_Block * block;
 		BF_Block_Init(&block);
@@ -186,32 +176,28 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 		CALL_OR_EXIT(BF_GetBlock(fileDesc, i, block));
 
 		char * data = BF_Block_GetData(block);
-		for (int i = 0; i < (int) data[RECORDS]; i++)
+		for (int j = 0; j < (int) data[RECORDS]; j++)
 		{
-			Record * record = (Record *) &data[RECORD(i)];
+			Record * record = (Record *) &data[RECORD(j)];
 			int whitespace;
-
-			printf("|%d", (i + 1));
-			whitespace = 11 - padding(i + 1);
-			for (int i = 0; i < whitespace; i++) printf(" ");
 
 			printf("|%d", record->id);
 			whitespace = 11 - padding(record->id);
-			for (int i = 0; i < whitespace; i++) printf(" ");
+			for (int k = 0; k < whitespace; k++) printf(" ");
 
 			printf("|%s", record->name);
 			whitespace = 15 - strlen(record->name);
-			for (int i = 0; i < whitespace; i++) printf(" ");
+			for (int k = 0; k < whitespace; k++) printf(" ");
 
 			printf("|%s", record->surname);
 			whitespace = 20 - strlen(record->surname);
-			for (int i = 0; i < whitespace; i++) printf(" ");
+			for (int k = 0; k < whitespace; k++) printf(" ");
 
 			printf("|%s", record->city);
 			whitespace = 20 - strlen(record->city);
-			for (int i = 0; i < whitespace; i++) printf(" ");
+			for (int k = 0; k < whitespace; k++) printf(" ");
 
-			printf("\n+-----------+-----------+---------------+--------------------+--------------------+\n");
+			printf("|\n+-----------+---------------+--------------------+--------------------+\n");
 		}
 
 		CALL_OR_EXIT(BF_UnpinBlock(block));
