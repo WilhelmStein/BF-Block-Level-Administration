@@ -148,16 +148,76 @@ SR_ErrorCode SR_SortedFile(
 	const char* input_filename,
 	const char* output_filename,
 	int fieldNo,
-	int bufferSize
-) {
+	int bufferSize)
+{
 	// Your code goes here
 
 	return SR_OK;
 }
 
+// Utility Function:
+// Returns the given value's length as a string
+static int padding(int val)
+{
+	int length = 0;
 
-SR_ErrorCode SR_PrintAllEntries(int fileDesc) {
-	// Your code goes here
+	while ( val && ++length ) val /= 10;
+
+	return length;
+}
+
+SR_ErrorCode SR_PrintAllEntries(int fileDesc)
+{
+	if (!isSorted(fileDesc))
+		return SR_BF_ERROR;
+	
+	int blocks;
+	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &blocks));
+
+	printf("+-----------+-----------+---------------+--------------------+--------------------+\n");
+	printf("|INDEX      |ID         |NAME           |SURNAME             |CITY                |\n");
+	printf("+-----------+-----------+---------------+--------------------+--------------------+\n");
+
+	for (int i = 0; i < blocks; i++)
+	{
+		BF_Block * block;
+		BF_Block_Init(&block);
+
+		CALL_OR_EXIT(BF_GetBlock(fileDesc, i, block));
+
+		char * data = BF_Block_GetData(block);
+		for (int i = 0; i < (int) data[RECORDS]; i++)
+		{
+			Record * record = (Record *) data[RECORD(i)];
+			int whitespace;
+
+			printf("|%d", (i + 1));
+			whitespace = 11 - padding(i + 1);
+			for (int i = 0; i < whitespace; i++) printf(' ');
+
+			printf("|%d", record->id);
+			whitespace = 11 - padding(record->id);
+			for (int i = 0; i < whitespace; i++) printf(' ');
+
+			printf("|%s", record->name);
+			whitespace = 15 - strlen(record->name);
+			for (int i = 0; i < whitespace; i++) printf(' ');
+
+			printf("|%s", record->surname);
+			whitespace = 20 - strlen(record->surname);
+			for (int i = 0; i < whitespace; i++) printf(' ');
+
+			printf("|%s", record->city);
+			whitespace = 20 - strlen(record->city);
+			for (int i = 0; i < whitespace; i++) printf(' ');
+
+			printf("\n+-----------+-----------+---------------+--------------------+--------------------+\n");
+		}
+
+		CALL_OR_EXIT(BF_UnpinBlock(block));
+
+		BF_Block_Destroy(block);
+	}
 
 	return SR_OK;
 }
