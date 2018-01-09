@@ -15,14 +15,24 @@ typedef struct Record {
 	char city[20];
 } Record;
 
-typedef enum { false, true } bool;
+
+//General Values
+#define MAXRECORDS	( (BF_BLOCK_SIZE - sizeof(int)) / sizeof(Record) )
 
 // Metadata block's Index within the file
 #define META       (0)
 
-#define IDENTIFIER (0)
+//MetaData Values
+#define SORTED 		('s')
 
-#define SORTED    ('s')
+//MetaData Indices
+	//MetaBlock
+#define IDENTIFIER	 (0)
+	//Every other Block
+#define RECORDS		 (0)
+#define RECORD(i)	 ( sizeof(int) + (sizeof(Record) * i) )
+
+typedef enum { false, true } bool;
 
 /*
  * Η συνάρτηση SR_Init χρησιμοποιείται για την αρχικοποίηση του sort_file.
