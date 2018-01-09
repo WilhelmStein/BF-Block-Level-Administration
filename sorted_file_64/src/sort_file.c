@@ -33,15 +33,15 @@ static bool isSorted(const int fileDesc)
 	return rv;
 }
 
-SR_ErrorCode SR_Init() {
-  	// Your code goes here
+SR_ErrorCode SR_Init() 
+{
 
   	return SR_OK;
 }
 
 
-SR_ErrorCode SR_CreateFile(const char *fileName) {
-  	// Your code goes here
+SR_ErrorCode SR_CreateFile(const char *fileName) 
+{
 
 	CALL_OR_EXIT(BF_CreateFile(fileName));
 
@@ -87,9 +87,11 @@ SR_ErrorCode SR_CloseFile(int fileDesc)
 }
 
 
-SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) {
-  	// Your code goes here
-	int full = 0;
+SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) 
+{
+
+	if (!isSorted(fileDesc)) 
+		return SR_UNSORTED;
 
 	BF_Block *block;
 	BF_Block_Init(&block);
@@ -140,7 +142,6 @@ SR_ErrorCode SR_SortedFile(
 	int fieldNo,
 	int bufferSize)
 {
-	// Your code goes here
 
 	return SR_OK;
 }
