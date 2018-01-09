@@ -2,7 +2,7 @@ all: sr_main1 sr_main2 sr_main3
 
 sr_main1:
 	@echo " Compile sr_main1 ...";
-	gcc -I ./include/ -L ./lib/ -Wl,-rpath,./lib/ ./examples/sr_main1.c ./src/sort_file.c -lbf -o ./build/sr_main1 -O2 -g3
+	gcc -I ./include/ -L ./lib/ -Wl,-rpath,./lib/ ./examples/sr_main1.c ./src/sort_file.c -lbf -o ./build/sr_main1 -g3
 
 sr_main2:
 	@echo " Compile sr_main2 ...";
@@ -20,3 +20,4 @@ bf:
 .PHONY: clean
 clean:
 	rm ./build/*
+	rm ./unsorted_data.db

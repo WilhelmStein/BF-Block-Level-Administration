@@ -96,36 +96,43 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) {
 
 	int blocksNum;
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &blocksNum));
-
+	CALL_OR_EXIT(BF_GetBlock(fileDesc, blocksNum - 1, block));
 	char *data = BF_Block_GetData(block);
 
 	
-	if(blocksNum == 1 || data[RECORDS] == MAXRECORDS) {
+	if(blocksNum == 1 || (int)data[RECORDS] == MAXRECORDS) {
 		BF_Block *newBlock;
 		BF_Block_Init(&newBlock);
 		CALL_OR_EXIT(BF_AllocateBlock(fileDesc, newBlock));
 		data = BF_Block_GetData(newBlock);
 
 		int one = 1;
-		memcpy(data[RECORDS], &one, 4);
+		memcpy((int *)&data[RECORDS], &one, sizeof(int));
 
-		memcpy(data[RECORD(0)], &record, sizeof(Record));
+		memcpy((Record *)&data[RECORD(0)], &record, sizeof(Record));
 
-		printf("id : %d\n", data[RECORD(0) + 0]);
-		printf("name : %s\n", data[RECORD(0) + 4]);
-		printf("surname : %s\n", data[RECORD(0) + 4 + 15]);
-		printf("city : %s\n", data[RECORD(0) + 4 + 15 + 20]);
+		printf("id : %d\n", (int)data[RECORD(0) + 0]);
+		printf("name : %s\n", (char *)&data[RECORD(0) + 4]);
+		printf("surname : %s\n", (char *)&data[RECORD(0) + 4 + 15]);
+		printf("city : %s\n", (char *)&data[RECORD(0) + 4 + 15 + 20]);
 
 		BF_Block_SetDirty(newBlock);
 		BF_UnpinBlock(newBlock);
 		BF_Block_Destroy(&newBlock);
 	}
 	else if (blocksNum != 1) {
-		CALL_OR_EXIT(BF_GetBlock(fileDesc, blocksNum - 1, block));
 
-		int records = data[RECORDS];
+		int records = (int)data[RECORDS];
 		
-		memcpy(data[RECORD(records)], &record, sizeof(Record));
+		memcpy((Record *)&data[RECORD(records)], &record, sizeof(Record));
+
+		printf("id : %d\n", (int)data[RECORD(records) + 0]);
+		printf("name : %s\n", (char *)&data[RECORD(records) + 4]);
+		printf("surname : %s\n", (char *)&data[RECORD(records) + 4 + 15]);
+		printf("city : %s\n", (char *)&data[RECORD(records) + 4 + 15 + 20]);
+
+		records += 1;
+		memcpy((int *)&data[RECORDS], &records, sizeof(int));
 
 		BF_Block_SetDirty(block);
 	}
