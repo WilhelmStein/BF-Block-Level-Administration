@@ -3,7 +3,9 @@
 
 typedef enum SR_ErrorCode {
   SR_OK,
-  SR_ERROR
+  SR_ERROR,
+  SR_BF_ERROR,
+  SR_UNSORTED
 } SR_ErrorCode;
 
 typedef struct Record {
@@ -12,6 +14,25 @@ typedef struct Record {
 	char surname[20];
 	char city[20];
 } Record;
+
+
+//General Values
+#define MAXRECORDS	( (BF_BLOCK_SIZE - sizeof(int)) / sizeof(Record) )
+
+// Metadata block's Index within the file
+#define META       (0)
+
+//MetaData Values
+#define SORTED 		('s')
+
+//MetaData Indices
+	//MetaBlock
+#define IDENTIFIER	 (0)
+	//Every other Block
+#define RECORDS		 (0)
+#define RECORD(i)	 ( sizeof(int) + (sizeof(Record) * i) )
+
+typedef enum { false, true } bool;
 
 /*
  * Η συνάρτηση SR_Init χρησιμοποιείται για την αρχικοποίηση του sort_file.
