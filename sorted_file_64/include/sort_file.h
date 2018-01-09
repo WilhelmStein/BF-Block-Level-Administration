@@ -13,6 +13,21 @@ typedef struct Record {
 	char city[20];
 } Record;
 
+
+//General Values
+#define MAXRECORDS	( (BF_BLOCK_SIZE - sizeof(int)) / sizeof(Record) )
+
+//MetaData Values
+#define SORTED 		('s')
+
+//MetaData Indices
+	//MetaBlock
+#define IDENTIFIER	 (0)
+	//Every other Block
+#define RECORDS		 (0)
+#define RECORD(i)	 ( sizeof(int) + (sizeof(Record) * i) )
+
+
 /*
  * Η συνάρτηση SR_Init χρησιμοποιείται για την αρχικοποίηση του sort_file.
  * Σε περίπτωση που εκτελεστεί επιτυχώς, επιστρέφεται SR_OK, ενώ σε
