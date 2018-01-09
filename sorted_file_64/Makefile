@@ -19,5 +19,6 @@ bf:
 
 .PHONY: clean
 clean:
-	rm ./build/*
-	rm ./unsorted_data.db
+	rm -f ./unsorted_data.db
+	rm -f ./build/*
+
