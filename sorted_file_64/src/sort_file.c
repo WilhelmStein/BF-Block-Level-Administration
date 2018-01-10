@@ -342,8 +342,6 @@ static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBloc
 	return newfileDesc;
 }
 
-
-
 SR_ErrorCode SR_SortedFile(
 	const char* input_filename,
 	const char* output_filename,
