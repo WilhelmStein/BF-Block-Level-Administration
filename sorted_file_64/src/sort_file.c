@@ -213,6 +213,7 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 
 	int allBlocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &allBlocks));
+	allBlocks--;
 
 	//Initialization of array
 	int index = startIndex;
@@ -242,7 +243,7 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 	return SR_OK;
 }
 
-static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex, int *done) {
+static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex) {
 	//if we went through whole block get a new one
 	if (blockArray[minIndex].iterator >= *(int *)&blockArray[minIndex].data[RECORDS]) {
 		//If there are more blocks to go through in this index
@@ -262,7 +263,6 @@ static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex, int *
 			blockArray[minIndex].blockCounter = -1;
 			blockArray[minIndex].data = NULL;
 			blockArray[minIndex].block = NULL;
-			(*done)++;
 		}
   	}
  	return SR_OK;
@@ -270,7 +270,7 @@ static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex, int *
 
 static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
 	//if result block filled write it and get a new one
-	if ((int)result->data[RECORDS] == MAXRECORDS) {
+	if ((int)result->data[RECORDS] >= MAXRECORDS) {
 		BF_Block_SetDirty(result->block);
 		CALL_OR_EXIT(BF_UnpinBlock(result->block));
 		BF_Block_Destroy(&(result->block));
@@ -279,6 +279,8 @@ static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
 		CALL_OR_EXIT(BF_AllocateBlock(newfileDesc, result->block));
 		result->data = BF_Block_GetData(result->block);
 		result->iterator = 0;
+		int zero = 0;
+		memcpy((int *)&result->data[RECORDS], &zero, sizeof(int));
 	}
   	return SR_OK;
 }
@@ -324,13 +326,11 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 	memcpy((int *)&result.data[RECORDS], &zero, sizeof(int));
 
 	//This holds the number of block "teams" that are finished
-	int done = 0;
-	while(done != bufferSize - 1) {
+	int minIndex;
+	while( (minIndex = findMin(blockArray, bufferSize, fieldNo)) != -1 ) {
 
-		int minIndex;
-		if ( (minIndex = findMin(blockArray, bufferSize, fieldNo)) == -1 ) {
-			break;
-		}
+		//Check if result block is filled
+		getNewResultBlock(newfileDesc, &result);
 
 		int lastit = result.iterator;
 		int minit = blockArray[minIndex].iterator;
@@ -348,11 +348,12 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 		memcpy((int *)&result.data[RECORDS], &records, sizeof(int));
 
 		//Check if we went through whole block
-		getNewBlock(fileDesc, blockArray, minIndex, &done);
-		//Check if result block is filled
-		getNewResultBlock(newfileDesc, &result);
-
+		getNewBlock(fileDesc, blockArray, minIndex);
 	}
+
+	BF_Block_SetDirty(result.block);
+	CALL_OR_EXIT(BF_UnpinBlock(result.block));
+	BF_Block_Destroy(&result.block);
 
 	return SR_OK;
 }
@@ -441,8 +442,8 @@ SR_ErrorCode SR_SortedFile(
 	CALL_OR_EXIT(BF_GetBlockCounter(tempFileFds[0], &allBlocks));
 
 	do {
-		SR_PrintAllEntries(tempFileFds[!index]);
-		for (int i = 1; i < allBlocks; i += (bufferSize - 1) * maxBlocks)
+
+		for (int i = 1; i < allBlocks - 1; i += (maxBlocks * (bufferSize - 1)) )
 			murgemgurge(tempFileFds[!index], tempFileFds[index], bufferSize, i, maxBlocks, fieldNo);
 
 
@@ -453,15 +454,18 @@ SR_ErrorCode SR_SortedFile(
 		SR_OpenFile(tempFileNames[!index], &tempFileFds[!index]);
 
 		index = !index;
+
 		maxBlocks *= (bufferSize - 1);
 
-		
-	} while(maxBlocks <= allBlocks);
+	} while(maxBlocks < allBlocks - 1);
 
+	//SR_PrintAllEntries(tempFileFds[!index]);
+
+	SR_CloseFile(tempFileFds[!index]);
+	rename(tempFileNames[!index], output_filename);
+	
 	SR_CloseFile(tempFileFds[index]);
 	remove(tempFileNames[index]);
-
-	
 	
 	return SR_OK;
 }
@@ -491,6 +495,7 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 	printf("|ID         |NAME           |SURNAME             |CITY                |\n");
 	printf("+-----------+---------------+--------------------+--------------------+\n");
 
+	int kostas = 0;
 	for (int i = 1; i < blocks; i++)
 	{
 		BF_Block * block;
@@ -521,12 +526,15 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 			for (int k = 0; k < whitespace; k++) printf(" ");
 
 			printf("|\n+-----------+---------------+--------------------+--------------------+\n");
+			kostas++;
 		}
+
+		
 
 		CALL_OR_EXIT(BF_UnpinBlock(block));
 
 		BF_Block_Destroy(&block);
 	}
-
+	printf("\nrecords : %d", kostas);
 	return SR_OK;
 }
