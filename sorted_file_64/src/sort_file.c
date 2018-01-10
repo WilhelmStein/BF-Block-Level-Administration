@@ -187,38 +187,125 @@ SR_ErrorCode SR_SortedFile(
 	return SR_OK;
 }
 
+typedef struct mergeBlock{
+	int endCounter;		//counter of last block in this team
+	int blockCounter;  	//counter of block inside file
+	int iterator;		//records iterator inside block (where we write/read)
+	BF_Block *block;	//current block
+	char *data;			//data of current block
+}mergeBlock;
+
 static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
 
 	SR_CreateFile("tempFileMerge");
 	int newfileDesc;
 	SR_OpenFile("tempFileMerge", &newfileDesc);
 
-	char **blockArray = malloc(bufferSize * sizeof(char *));
-	
+	mergeBlock *blockArray = malloc( (bufferSize - 1) * sizeof(mergeBlock));
 
-	//Initialization
+	int allBlocks;
+	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &allBlocks));
+
+	//Initialization of array
 	int index = startIndex;
 	int i;
 	for (i = 0; i < bufferSize - 1; i++) {
 		BF_Block *block;
 		BF_Block_Init(&block);
 		CALL_OR_EXIT(BF_GetBlock(fileDesc, index, block));
-		blockArray[i] = BF_Block_GetData(block);
+		blockArray[i].data = BF_Block_GetData(block);
+		blockArray[i].block = block;
+		blockArray[i].iterator = 0;
+		blockArray[i].blockCounter = index;
+		if (index + maxBlocks > allBlocks)
+			blockArray[i].endCounter = allBlocks;
+		else
+			blockArray[i].endCounter = index + maxBlocks;
 		index += maxBlocks;
 	}
+
+	//Initialization of result block
 	BF_Block *block;
 	BF_Block_Init(&block);
 	CALL_OR_EXIT(BF_AllocateBlock(newfileDesc, block));
-	blockArray[i] = BF_Block_GetData(block);
+	mergeBlock result;
+	result.data = BF_Block_GetData(block);
+	result.iterator = 0;
+	result.block = block;
+	result.blockCounter = 0; //This does not matter here
+	blockArray[i].endCounter = 0; //This does not matter here
+	int zero = 0;
+	memcpy((int *)&result.data[RECORDS], &zero, sizeof(int));
 
+	//it will not be while true ...
+	//This holds the number of block "teams" that are finished
+	int done = 0;
+	while(done != bufferSize - 1) {
 
+		int minIndex = findMin(blockArray, bufferSize, fieldNo);
+
+		int lastit = result.iterator;
+		int minit = blockArray[minIndex].iterator;
+		
+		//write the min record to result block
+		memcpy(&result.data[RECORD(lastit)], &blockArray[minIndex].data[RECORD(minit)] , sizeof(Record));
+
+		//Increase iterators for writing/reading
+		result.iterator++;
+		blockArray[minIndex].iterator++;
+
+		//increase the number of records in result block
+		int records = (int)result.data[RECORDS];
+		records++;
+		memcpy((int *)&result.data[RECORDS], &records, sizeof(int));
+
+		//if we went through whole block get a new one
+		if (blockArray[minIndex].iterator == *(int *)&blockArray[minIndex].data[RECORDS]) {
+			//If there are more blocks to go through in this index
+			if (blockArray[minIndex].blockCounter < blockArray[minIndex].endCounter ) {
+				CALL_OR_EXIT( BF_UnpinBlock(blockArray[minIndex].block) );
+				int index = blockArray[minIndex].blockCounter + 1;
+				CALL_OR_EXIT(BF_GetBlock(fileDesc, index, blockArray[minIndex].block));
+				blockArray[minIndex].block = block;
+				blockArray[minIndex].data = BF_Block_GetData(block);
+				blockArray[minIndex].iterator = 0;
+				blockArray[minIndex].blockCounter++;
+			}
+			//else "delete" mergeblock
+			else {
+				CALL_OR_EXIT( BF_UnpinBlock(blockArray[minIndex].block) );
+				BF_Block_Destroy(blockArray[minIndex].block);
+				blockArray[minIndex].iterator = -1;
+				blockArray[minIndex].blockCounter = -1;
+				blockArray[minIndex].data = NULL;
+				done++;
+			}
+		}
+
+		//if result block filled write it and get a new one
+		if (result.data[RECORDS] == MAXRECORDS) {
+			BF_Block_SetDirty(result.block);
+			CALL_OR_EXIT(BF_UnpinBlock(result.block));
+			CALL_OR_EXIT(BF_AllocateBlock(newfileDesc, &result.block));
+			result.data = BF_Block_GetData(result.block);
+			result.iterator = 0;
+		}
+
+	}
 
 }
 
-static int findMin(char **blockArray, int bufferSize, int fieldNo) {
-	for (int i = 0; i < bufferSize - 1; i++) {
-
+static int findMin(mergeBlock *blockArray, int bufferSize, int fieldNo) {
+	int minIndex = 0;
+	for (int i = 1; i <= bufferSize - 1; i++) {
+		int it = blockArray[i].iterator;
+		int minit = blockArray[minIndex].iterator;
+		if (blockArray[i].iterator == -1) continue;
+		if (compareRecord((Record *)blockArray[i].data[RECORD(it)], (Record *)blockArray[minIndex].data[RECORD(minit)], fieldNo) ) {
+			minIndex = i;
+		}
 	}
+	return minIndex;
 }
 
 // Utility Function:
