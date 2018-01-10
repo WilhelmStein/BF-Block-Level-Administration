@@ -86,10 +86,8 @@ SR_ErrorCode SR_CloseFile(int fileDesc)
 	return SR_OK;
 }
 
-
 SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record) 
 {
-
 	if (!isSorted(fileDesc)) 
 		return SR_UNSORTED;
 
@@ -135,7 +133,6 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record)
   	return SR_OK;
 }
 
-
 static bool compareRecord(const Record * const ra, const Record * const rb, const int fieldNo)
 {
 	switch(fieldNo)
@@ -151,21 +148,56 @@ static bool compareRecord(const Record * const ra, const Record * const rb, cons
 	}
 }
 
-static int partition(const char *  const blockData[], const int beg, const int end)
-{	
-	const int last = (* (int *) blockData[RECORDS]) - 1;
-	Record * pivot = (Record *) &blockData[RECORD(last)];
-
-
+static void swapRecord(Record * const ra, Record * const rb)
+{
+	if (ra != rb)
+	{
+		Record rac;
+		
+		memcpy((void *) &rac, (void *)   ra, sizeof(Record));
+		memcpy((void *)   ra, (void *)   rb, sizeof(Record));
+		memcpy((void *)   rb, (void *) &rac, sizeof(Record));
+	}
 }
 
-static void qsort(const char *  const blockData[], const int beg, const int end)
+static Record * getRecord(char * const blockData[], const int index)
 {
-	if (beg < end)
+	int blockIndex = index / MAXRECORDS, recordIndex = index % MAXRECORDS;
+
+	return (Record *) &(blockData[blockIndex][RECORD(recordIndex)]);
+}
+
+static int partition(char * const blockData[], const int lo, const int hi, const int fieldNo)
+{	
+	Record * pivot = getRecord(blockData, hi), * recordJ, * recordI;
+	
+    int i = lo - 1;
+	for (int j = lo; j <= hi - 1; j++)
 	{
-		int piv = partition(blockData, end, beg);
-		qsort(blockData, beg, piv - 1);
-		qsort(blockData, piv + 1, end);
+		recordJ = getRecord(blockData, j);
+		if (compareRecord(recordJ, pivot, fieldNo))
+		{
+			recordI = getRecord(blockData, ++i);
+			swapRecord(recordI, recordJ);
+		}
+	}
+
+	recordJ = getRecord(blockData, hi);
+	recordI = getRecord(blockData, i + 1);
+	if (compareRecord(recordJ, recordI, fieldNo))
+		swapRecord(recordJ, recordI);
+
+	return i + 1;
+}
+
+static void quickSort(char * const blockData[], const int lo, const int hi, const int fieldNo)
+{
+	if (lo < hi)
+	{
+		int piv = partition(blockData, lo, hi, fieldNo);
+
+		quickSort(blockData, lo    , piv - 1, fieldNo);
+		quickSort(blockData, piv + 1, hi    , fieldNo);
 	}
 }
 
@@ -176,22 +208,14 @@ SR_ErrorCode SR_SortedFile(
 	int bufferSize)
 {
 
-	for (int i = 0; i < bufferSize; i++) {
-		//quicksort
-	}
-
-	int tempfd;
-	SR_OpenFile("tempFile", &tempfd);
-
-
 	return SR_OK;
 }
 
 static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
 
-	SR_CreateFile("tempFileMerge");
+	SR_CreateFile("racFileMerge");
 	int newfileDesc;
-	SR_OpenFile("tempFileMerge", &newfileDesc);
+	SR_OpenFile("racFileMerge", &newfileDesc);
 
 	char **blockArray = malloc(bufferSize * sizeof(char *));
 	
@@ -240,6 +264,7 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 	int blocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &blocks));
 
+	printf("\n\n");
 	printf("+-----------+---------------+--------------------+--------------------+\n");
 	printf("|ID         |NAME           |SURNAME             |CITY                |\n");
 	printf("+-----------+---------------+--------------------+--------------------+\n");
