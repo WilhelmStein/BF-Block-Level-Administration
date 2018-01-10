@@ -218,6 +218,13 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 	int index = startIndex;
 	int i;
 	for (i = 0; i < bufferSize - 1; i++) {
+		if (index >= allBlocks) {
+			blockArray[i].iterator = -1;
+			blockArray[i].blockCounter = -1;
+			blockArray[i].data = NULL;
+			blockArray[i].block = NULL;
+			continue;
+		}
 		BF_Block *block;
 		BF_Block_Init(&block);
 		CALL_OR_EXIT(BF_GetBlock(fileDesc, index, block));
@@ -225,7 +232,7 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 		blockArray[i].block = block;
 		blockArray[i].iterator = 0;
 		blockArray[i].blockCounter = index;
-		if (index + maxBlocks > allBlocks)
+		if (index + maxBlocks >= allBlocks)
 			blockArray[i].endCounter = allBlocks;
 		else
 			blockArray[i].endCounter = index + maxBlocks;
@@ -237,9 +244,9 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 
 static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex, int *done) {
 	//if we went through whole block get a new one
-	if (blockArray[minIndex].iterator == *(int *)&blockArray[minIndex].data[RECORDS]) {
+	if (blockArray[minIndex].iterator >= *(int *)&blockArray[minIndex].data[RECORDS]) {
 		//If there are more blocks to go through in this index
-		if (blockArray[minIndex].blockCounter < blockArray[minIndex].endCounter ) {
+		if (blockArray[minIndex].blockCounter < blockArray[minIndex].endCounter - 1) {
 			CALL_OR_EXIT( BF_UnpinBlock(blockArray[minIndex].block) );
 			int index = blockArray[minIndex].blockCounter + 1;
 			CALL_OR_EXIT(BF_GetBlock(fileDesc, index, blockArray[minIndex].block));
@@ -254,10 +261,11 @@ static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex, int *
 			blockArray[minIndex].iterator = -1;
 			blockArray[minIndex].blockCounter = -1;
 			blockArray[minIndex].data = NULL;
+			blockArray[minIndex].block = NULL;
 			(*done)++;
 		}
-  }
-  return SR_OK;
+  	}
+ 	return SR_OK;
 }
 
 static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
@@ -272,28 +280,32 @@ static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
 		result->data = BF_Block_GetData(result->block);
 		result->iterator = 0;
 	}
-  return SR_OK;
+  	return SR_OK;
 }
 
 static int findMin(mergeBlock *blockArray, int bufferSize, int fieldNo) {
 	int minIndex = 0;
-	for (int i = 1; i < bufferSize - 1; i++) {
+
+	while (minIndex < bufferSize - 1 && blockArray[minIndex].iterator == -1) {
+		minIndex++;
+	}
+
+	for (int i = minIndex; i < bufferSize - 1; i++) {
+
 		int it = blockArray[i].iterator;
 		int minit = blockArray[minIndex].iterator;
-		if (minit == -1) minIndex = i;
-		if (blockArray[i].iterator == -1) continue;
+
+		if (it == -1) continue;
+
 		if (compareRecord((Record *)&blockArray[i].data[RECORD(it)], (Record *)&blockArray[minIndex].data[RECORD(minit)], fieldNo) ) {
 			minIndex = i;
 		}
 	}
-	return minIndex;
+	return (minIndex >= bufferSize - 1 ? -1 : minIndex);
 }
 
-static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
+static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
 
-	SR_CreateFile("racFileMerge");
-	int newfileDesc;
-	SR_OpenFile("racFileMerge", &newfileDesc);
 
 	mergeBlock *blockArray = malloc( (bufferSize - 1) * sizeof(mergeBlock));
 
@@ -315,7 +327,10 @@ static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBloc
 	int done = 0;
 	while(done != bufferSize - 1) {
 
-		int minIndex = findMin(blockArray, bufferSize, fieldNo);
+		int minIndex;
+		if ( (minIndex = findMin(blockArray, bufferSize, fieldNo)) == -1 ) {
+			break;
+		}
 
 		int lastit = result.iterator;
 		int minit = blockArray[minIndex].iterator;
@@ -339,7 +354,62 @@ static int murgemgurge(int fileDesc, int bufferSize, int startIndex, int maxBloc
 
 	}
 
-	return newfileDesc;
+	return SR_OK;
+}
+
+static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
+	int allBlocks;
+	CALL_OR_EXIT(BF_GetBlockCounter(inputfd, &allBlocks));
+
+	char **blockData = malloc(bufferSize * sizeof(char *));
+	int startIndex = 1;
+
+	BF_Block **blockArray = malloc(bufferSize * sizeof(BF_Block *));
+
+	int allRecords;
+
+	while(startIndex < allBlocks) {
+		allRecords = 0;
+
+		for (int i = 0; i < bufferSize; i++) {
+			blockArray[i] = NULL;
+			if (startIndex >= allBlocks) {
+				break;
+			}
+
+			BF_Block_Init(&(blockArray[i]));
+			CALL_OR_EXIT(BF_GetBlock(inputfd, startIndex, blockArray[i]));
+
+			blockData[i] = BF_Block_GetData(blockArray[i]);
+			allRecords += (int)blockData[i][RECORDS];
+
+			startIndex++;
+		}
+
+		quickSort(blockData, 0, allRecords - 1, fieldNo);
+
+		for (int i = 0; i < bufferSize; i++) {
+			if (!blockArray[i]) break;
+
+			BF_Block *newBlock;
+			BF_Block_Init(&newBlock);
+			
+			CALL_OR_EXIT(BF_AllocateBlock(tempQuickfd, newBlock));
+			char *data = BF_Block_GetData(newBlock);
+
+			memcpy(data, blockData[i], BF_BLOCK_SIZE);
+
+			BF_Block_SetDirty(newBlock);
+			CALL_OR_EXIT(BF_UnpinBlock(newBlock));
+			BF_Block_Destroy(&newBlock);
+
+			CALL_OR_EXIT(BF_UnpinBlock(blockArray[i]));
+			BF_Block_Destroy(&(blockArray[i]));
+		}
+	}
+
+	free(blockArray);
+	free(blockData);
 }
 
 SR_ErrorCode SR_SortedFile(
@@ -348,19 +418,51 @@ SR_ErrorCode SR_SortedFile(
 	int fieldNo,
 	int bufferSize)
 {
+	char * tempFileNames[] = { "tempA.db", "tempB.db" };
+	int tempFileFds[] = { -1, -1 };
+	
+	SR_CreateFile(tempFileNames[0]);
+	SR_OpenFile(tempFileNames[0], &tempFileFds[0]);
 
-	for (int i = 0; i < bufferSize; i++) {
-		//quicksort
-	}
+	int inputfd;
+	SR_OpenFile(input_filename, &inputfd);
+	
+	stepA(inputfd, tempFileFds[0], bufferSize, fieldNo);
 
-	int tempfd;
-	SR_OpenFile(input_filename, &tempfd);
+	SR_CloseFile(inputfd);
+	
+	SR_CreateFile(tempFileNames[1]);
+	SR_OpenFile(tempFileNames[1], &tempFileFds[1]);
+	 
 
-	int fd = murgemgurge(tempfd, bufferSize, 1, bufferSize, fieldNo);
+	int index = 1;
+	int maxBlocks = bufferSize;
+	int allBlocks;
+	CALL_OR_EXIT(BF_GetBlockCounter(tempFileFds[0], &allBlocks));
 
-	SR_PrintAllEntries(fd);
+	do {
+		SR_PrintAllEntries(tempFileFds[!index]);
+		for (int i = 1; i < allBlocks; i += (bufferSize - 1) * maxBlocks)
+			murgemgurge(tempFileFds[!index], tempFileFds[index], bufferSize, i, maxBlocks, fieldNo);
 
 
+		SR_CloseFile(tempFileFds[!index]);
+		remove(tempFileNames[!index]);
+		
+		SR_CreateFile(tempFileNames[!index]);
+		SR_OpenFile(tempFileNames[!index], &tempFileFds[!index]);
+
+		index = !index;
+		maxBlocks *= (bufferSize - 1);
+
+		
+	} while(maxBlocks <= allBlocks);
+
+	SR_CloseFile(tempFileFds[index]);
+	remove(tempFileNames[index]);
+
+	
+	
 	return SR_OK;
 }
 

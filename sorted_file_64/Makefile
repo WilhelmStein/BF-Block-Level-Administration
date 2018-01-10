@@ -19,6 +19,11 @@ bf:
 
 .PHONY: clean
 clean:
-	rm -f ./unsorted_data.db
+	rm -f ./*.db
 	rm -f ./build/*
+
+.PHONY: discard
+discard:
+	rm -f ./tempA.db
+	rm -f ./tempB.db
 

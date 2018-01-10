@@ -9,7 +9,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/sr_main1",
+            "program": "${workspaceFolder}/build/sr_main2",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
