@@ -370,11 +370,10 @@ SR_ErrorCode SR_SortedFile(
 // Returns the given value's length as a string
 static int padding(int val)
 {
-	int length = 0;
+	char IntToStr[12];
+	sprintf(IntToStr, "%d", val);
 
-	while ( val && ++length ) val /= 10;
-
-	return length;
+	return strlen(IntToStr);
 }
 
 SR_ErrorCode SR_PrintAllEntries(int fileDesc)
