@@ -14,9 +14,9 @@
 }
 
 // Utility Function:
-// Assumes the file has been already opened
-// Accesses the file's metadata block at index META
-// Checks if its identifier corresponds to that of sorted file
+// Assumes the file has already been opened
+// Accesses the file's metadata block
+// Checks if its identifier corresponds to that of a sorted file
 static bool isSorted(const int fileDesc)
 {
 	BF_Block * block;
@@ -35,14 +35,11 @@ static bool isSorted(const int fileDesc)
 
 SR_ErrorCode SR_Init() 
 {
-
   	return SR_OK;
 }
 
-
 SR_ErrorCode SR_CreateFile(const char *fileName) 
 {
-
 	CALL_OR_EXIT(BF_CreateFile(fileName));
 
 	int fileDesc;
@@ -62,7 +59,6 @@ SR_ErrorCode SR_CreateFile(const char *fileName)
 
   	return SR_OK;
 }
-
 
 SR_ErrorCode SR_OpenFile(const char *fileName, int *fileDesc)
 {
@@ -133,6 +129,10 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record)
   	return SR_OK;
 }
 
+// Utility Function:
+// Used in comparing two records ("ra" and "rb")
+// according to a field specified by fieldNo
+// Returns true if "ra" is "lesser" than "rb"
 static bool compareRecord(const Record * const ra, const Record * const rb, const int fieldNo)
 {
 	switch(fieldNo)
@@ -148,6 +148,9 @@ static bool compareRecord(const Record * const ra, const Record * const rb, cons
 	}
 }
 
+// Utility Function:
+// Used in swapping two records
+// Record "ra" and "rb" should not be overlapping
 static void swapRecord(Record * const ra, Record * const rb)
 {
 	if (ra != rb)
@@ -160,6 +163,9 @@ static void swapRecord(Record * const ra, Record * const rb)
 	}
 }
 
+// Utility Function:
+// Used in converting one dimensional indexing to two dimensional
+// and accessing the record corresponding to the specified index
 static Record * getRecord(char * const blockData[], const int index)
 {
 	int blockIndex = index / MAXRECORDS, recordIndex = index % MAXRECORDS;
@@ -167,6 +173,9 @@ static Record * getRecord(char * const blockData[], const int index)
 	return (Record *) &(blockData[blockIndex][RECORD(recordIndex)]);
 }
 
+// Utility Function:
+// Treat the chunk of blocks as an one dimensional array
+// and partition it based on the "Lomuto partition scheme"
 static int partition(char * const blockData[], const int lo, const int hi, const int fieldNo)
 {	
 	Record * pivot = getRecord(blockData, hi), * recordJ, * recordI;
@@ -190,6 +199,9 @@ static int partition(char * const blockData[], const int lo, const int hi, const
 	return i + 1;
 }
 
+// Utility Function:
+// Used by "external sort" at "Phase 0"
+// in sorting the original chunks of blocks
 static void quickSort(char * const blockData[], const int lo, const int hi, const int fieldNo)
 {
 	if (lo < hi)
@@ -357,7 +369,7 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 	return SR_OK;
 }
 
-static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
+static int PhaseZero(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
 	int allBlocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(inputfd, &allBlocks));
 
@@ -427,7 +439,7 @@ SR_ErrorCode SR_SortedFile(
 	int inputfd;
 	SR_OpenFile(input_filename, &inputfd);
 
-	stepA(inputfd, tempFileFds[0], bufferSize, fieldNo);
+	PhaseZero(inputfd, tempFileFds[0], bufferSize, fieldNo);
 
 	SR_CloseFile(inputfd);
 	
@@ -466,8 +478,6 @@ SR_ErrorCode SR_SortedFile(
 	
 	return SR_OK;
 }
-
-
 
 // Utility Function:
 // Returns the given value's length as a string
@@ -525,8 +535,6 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 			printf("|\n+-----------+---------------+--------------------+--------------------+\n");
 			kostas++;
 		}
-
-		
 
 		CALL_OR_EXIT(BF_UnpinBlock(block));
 
