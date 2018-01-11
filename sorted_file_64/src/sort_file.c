@@ -213,7 +213,6 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 
 	int allBlocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &allBlocks));
-	allBlocks--;
 
 	//Initialization of array
 	int index = startIndex;
@@ -444,12 +443,9 @@ SR_ErrorCode SR_SortedFile(
 	do {
 
 		for (int i = 1; i < allBlocks - 1; i += (maxBlocks * (bufferSize - 1)) ) {
-			SR_PrintAllEntries(tempFileFds[!index]);
 			murgemgurge(tempFileFds[!index], tempFileFds[index], bufferSize, i, maxBlocks, fieldNo);
-			SR_PrintAllEntries(tempFileFds[!index]);
 		}
-
-
+		
 		SR_CloseFile(tempFileFds[!index]);
 		remove(tempFileNames[!index]);
 		
@@ -461,8 +457,6 @@ SR_ErrorCode SR_SortedFile(
 		maxBlocks *= (bufferSize - 1);
 
 	} while(maxBlocks < allBlocks - 1);
-
-	SR_PrintAllEntries(tempFileFds[!index]);
 
 	SR_CloseFile(tempFileFds[!index]);
 	rename(tempFileNames[!index], output_filename);
