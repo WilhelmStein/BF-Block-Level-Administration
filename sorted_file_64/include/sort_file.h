@@ -1,38 +1,47 @@
 #ifndef SORT_FILE_H
 #define SORT_FILE_H
 
-typedef enum SR_ErrorCode {
+typedef enum SR_ErrorCode
+{
   SR_OK,
   SR_ERROR,
   SR_BF_ERROR,
   SR_UNSORTED
 } SR_ErrorCode;
 
-typedef struct Record {
+typedef struct Record
+{
 	int id;
 	char name[15];
 	char surname[20];
 	char city[20];
 } Record;
 
+// Boolean type defined as a means of improving readability
+typedef enum { false, true } bool;
 
-//General Values
+// The maximum number of records contained within any block
 #define MAXRECORDS	( (BF_BLOCK_SIZE - sizeof(int)) / sizeof(Record) )
 
-// Metadata block's Index within the file
-#define META       (0)
-
-//MetaData Values
-#define SORTED 		('s')
-
-//MetaData Indices
-	//MetaBlock
-#define IDENTIFIER	 (0)
-	//Every other Block
+// Each non-meta block stores its current
+// number of records at data[0]
 #define RECORDS		 (0)
+
+// Used in indexing any non-meta block's data
+// and retrieving the "i-th" record
 #define RECORD(i)	 ( sizeof(int) + (sizeof(Record) * i) )
 
-typedef enum { false, true } bool;
+// Each "sorted" file stores information
+// regarding its format at block[0]
+#define META         (0)
+
+// The Identifier of any "sorted" file
+// can be accessed at block[META]->data[0]
+#define IDENTIFIER	 (0)
+
+// Identifier used in indicating
+// a file is of the "sorted" format
+#define SORTED 		('s')
 
 /*
  * Η συνάρτηση SR_Init χρησιμοποιείται για την αρχικοποίηση του sort_file.
