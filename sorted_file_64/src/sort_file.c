@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BF_CALL_OR_EXIT(call)		\
+#define BF_CALL_OR_EXIT(call)	\
 {                           	\
 	BF_ErrorCode code = call; 	\
 	if(code != BF_OK) {       	\
