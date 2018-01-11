@@ -564,7 +564,7 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 	printf("|ID         |NAME           |SURNAME             |CITY                |\n");
 	printf("+-----------+---------------+--------------------+--------------------+\n");
 
-	int kostas = 0;
+	int records = 0;
 	for (int i = 1; i < blocks; i++)
 	{
 		BF_Block * block;
@@ -595,14 +595,17 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 			for (int k = 0; k < whitespace; k++) printf(" ");
 
 			printf("|\n+-----------+---------------+--------------------+--------------------+\n");
-			kostas++;
+			records++;
 		}
 
 		BF_CALL_OR_EXIT(BF_UnpinBlock(block));
 
 		BF_Block_Destroy(&block);
 	}
-	setvbuf (stdout, NULL, _IONBF, 0);
-	printf("\nrecords : %d", kostas);
+
+	//setvbuf (stdout, NULL, _IONBF, 0);
+
+	printf("\nPrinted %d records in %d blocks.\n", records, blocks - 1);
+
 	return SR_OK;
 }
