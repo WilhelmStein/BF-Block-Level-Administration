@@ -603,8 +603,6 @@ SR_ErrorCode SR_PrintAllEntries(int fileDesc)
 		BF_Block_Destroy(&block);
 	}
 
-	//setvbuf (stdout, NULL, _IONBF, 0);
-
 	printf("\nPrinted %d records in %d blocks.\n", records, blocks - 1);
 
 	return SR_OK;
