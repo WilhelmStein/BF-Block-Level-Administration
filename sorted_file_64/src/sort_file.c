@@ -53,6 +53,7 @@ SR_ErrorCode SR_CreateFile(const char *fileName)
 	CALL_OR_EXIT(BF_AllocateBlock(fileDesc, block));
 	char *data = BF_Block_GetData(block);
 
+	//set the first byte of first block (metaBlock) to the character 's' 
 	data[IDENTIFIER] = SORTED;
 
 	BF_Block_SetDirty(block);
@@ -99,7 +100,7 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record)
 	CALL_OR_EXIT(BF_GetBlock(fileDesc, blocksNum - 1, block));
 	char *data = BF_Block_GetData(block);
 
-	
+	//if file has only one black (the metaBlock) OR block is full get a new one and write
 	if(blocksNum == 1 || (int)data[RECORDS] == MAXRECORDS) {
 		BF_Block *newBlock;
 		BF_Block_Init(&newBlock);
@@ -115,10 +116,12 @@ SR_ErrorCode SR_InsertEntry(int fileDesc,	Record record)
 		BF_UnpinBlock(newBlock);
 		BF_Block_Destroy(&newBlock);
 	}
+	//else just write
 	else if (blocksNum != 1) {
 
 		int records = (int)data[RECORDS];
 		
+		//data[RECORD(records)] is the offset where the last record written stops. So write there
 		memcpy((Record *)&data[RECORD(records)], &record, sizeof(Record));
 
 		records += 1;
@@ -202,7 +205,7 @@ static void quickSort(char * const blockData[], const int lo, const int hi, cons
 }
 
 typedef struct mergeBlock{
-	int endCounter;		//counter of last block in this team
+	int endCounter;		//counter of first block of the next team
 	int blockCounter;  	//counter of block inside file
 	int iterator;		//records iterator inside block (where we write/read)
 	BF_Block *block;	//current block
@@ -215,9 +218,13 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 	CALL_OR_EXIT(BF_GetBlockCounter(fileDesc, &allBlocks));
 
 	//Initialization of array
+
+	//startIndex is the first block in all block "teams"
+	//then, index increases by size of team (maxBlocks) so we start from the next team
 	int index = startIndex;
 	int i;
 	for (i = 0; i < bufferSize - 1; i++) {
+		//if current index (team's first block) is greater than all the blocks initialize to "invalid" 
 		if (index >= allBlocks) {
 			blockArray[i].iterator = -1;
 			blockArray[i].blockCounter = -1;
@@ -225,6 +232,7 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 			blockArray[i].block = NULL;
 			continue;
 		}
+		//else get first block of team for each team
 		BF_Block *block;
 		BF_Block_Init(&block);
 		CALL_OR_EXIT(BF_GetBlock(fileDesc, index, block));
@@ -232,8 +240,12 @@ static int initMergeArray(int fileDesc, mergeBlock *blockArray, int bufferSize, 
 		blockArray[i].block = block;
 		blockArray[i].iterator = 0;
 		blockArray[i].blockCounter = index;
+		//this check is only for the LAST team of blocks
+		//which MAY have less than maxBlocks
+		//if so set the end counter to the start end of last block
 		if (index + maxBlocks >= allBlocks)
 			blockArray[i].endCounter = allBlocks;
+		//else set it to the start of next team
 		else
 			blockArray[i].endCounter = index + maxBlocks;
 		index += maxBlocks;
@@ -254,7 +266,7 @@ static int getNewBlock(int fileDesc, mergeBlock *blockArray, int minIndex) {
 			blockArray[minIndex].iterator = 0;
 			blockArray[minIndex].blockCounter++;
 		}
-		//else "delete" mergeblock
+		//else "delete" mergeblock, initialize it to "invalid"
 		else {
 			CALL_OR_EXIT( BF_UnpinBlock(blockArray[minIndex].block) );
 			BF_Block_Destroy(&blockArray[minIndex].block);
@@ -274,10 +286,12 @@ static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
 		CALL_OR_EXIT(BF_UnpinBlock(result->block));
 		BF_Block_Destroy(&(result->block));
 
+		//get a new one
 		BF_Block_Init(&(result->block));
 		CALL_OR_EXIT(BF_AllocateBlock(newfileDesc, result->block));
 		result->data = BF_Block_GetData(result->block);
 		result->iterator = 0;
+		//initliaze its records to 0
 		int zero = 0;
 		memcpy((int *)&result->data[RECORDS], &zero, sizeof(int));
 	}
@@ -287,25 +301,29 @@ static int getNewResultBlock(int newfileDesc, mergeBlock *result) {
 static int findMin(mergeBlock *blockArray, int bufferSize, int fieldNo) {
 	int minIndex = 0;
 
+	//find first index which is valid
 	while (minIndex < bufferSize - 1 && blockArray[minIndex].iterator == -1) {
 		minIndex++;
 	}
 
+	//start from there
 	for (int i = minIndex; i < bufferSize - 1; i++) {
 
 		int it = blockArray[i].iterator;
 		int minit = blockArray[minIndex].iterator;
 
+		//if invalid index
 		if (it == -1) continue;
 
 		if (compareRecord((Record *)&blockArray[i].data[RECORD(it)], (Record *)&blockArray[minIndex].data[RECORD(minit)], fieldNo) ) {
 			minIndex = i;
 		}
 	}
+	//if minIndex >= bufferSize means that there are not valid indices.
 	return (minIndex >= bufferSize - 1 ? -1 : minIndex);
 }
 
-static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
+static SR_ErrorCode Merge(int fileDesc, int newfileDesc, int bufferSize, int startIndex, int maxBlocks ,int fieldNo) {
 
 
 	mergeBlock *blockArray = malloc( (bufferSize - 1) * sizeof(mergeBlock));
@@ -326,6 +344,7 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 
 	//This holds the number of block "teams" that are finished
 	int minIndex;
+	// == -1 there are no more valid blocks in array so finish up
 	while( (minIndex = findMin(blockArray, bufferSize, fieldNo)) != -1 ) {
 
 		//Check if result block is filled
@@ -350,6 +369,7 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 		getNewBlock(fileDesc, blockArray, minIndex);
 	}
 
+	//write last result block
 	BF_Block_SetDirty(result.block);
 	CALL_OR_EXIT(BF_UnpinBlock(result.block));
 	BF_Block_Destroy(&result.block);
@@ -357,10 +377,12 @@ static SR_ErrorCode murgemgurge(int fileDesc, int newfileDesc, int bufferSize, i
 	return SR_OK;
 }
 
-static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
+static int PhaseZero(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
 	int allBlocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(inputfd, &allBlocks));
 
+	//2 arrays, one for blocks, one for data in those blocks
+	//Indices in one array correspond to the other
 	char **blockData = malloc(bufferSize * sizeof(char *));
 	int startIndex = 1;
 
@@ -368,9 +390,12 @@ static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
 
 	int allRecords;
 
+	//loop until all teams of bufferSize blocks have been sorted
 	while(startIndex < allBlocks) {
 		allRecords = 0;
 
+		//Each index in array has one block's data
+		//array has bufferSize indices
 		for (int i = 0; i < bufferSize; i++) {
 			blockArray[i] = NULL;
 			if (startIndex >= allBlocks) {
@@ -386,8 +411,10 @@ static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
 			startIndex++;
 		}
 
+		//Sort these bufferSize blocks
 		quickSort(blockData, 0, allRecords - 1, fieldNo);
 
+		//Write the sorted data into the new file
 		for (int i = 0; i < bufferSize; i++) {
 			if (!blockArray[i]) break;
 
@@ -406,10 +433,14 @@ static int stepA(int inputfd, int tempQuickfd, int bufferSize, int fieldNo) {
 			CALL_OR_EXIT(BF_UnpinBlock(blockArray[i]));
 			BF_Block_Destroy(&(blockArray[i]));
 		}
+
+		//loop until all teams of bufferSize blocks have been sorted
 	}
 
 	free(blockArray);
 	free(blockData);
+
+	return SR_OK;
 }
 
 SR_ErrorCode SR_SortedFile(
@@ -421,43 +452,63 @@ SR_ErrorCode SR_SortedFile(
 	char * tempFileNames[] = { "tempA.db", "tempB.db" };
 	int tempFileFds[] = { -1, -1 };
 	
+	//Create tempA
 	SR_CreateFile(tempFileNames[0]);
 	SR_OpenFile(tempFileNames[0], &tempFileFds[0]);
 
 	int inputfd;
 	SR_OpenFile(input_filename, &inputfd);
 
-	stepA(inputfd, tempFileFds[0], bufferSize, fieldNo);
+	//Initiate Phase 0 (quickSort) from input file to tempA
+	PhaseZero(inputfd, tempFileFds[0], bufferSize, fieldNo);
 
 	SR_CloseFile(inputfd);
 	
+	//create tempB
 	SR_CreateFile(tempFileNames[1]);
 	SR_OpenFile(tempFileNames[1], &tempFileFds[1]);
 	 
 
+	//Index here refers to the tempFileFds array
+	//At Start tempFileFds[0] = tempA, tempFileFds[1] = tempB
 	int index = 1;
 	int maxBlocks = bufferSize;
 	int allBlocks;
 	CALL_OR_EXIT(BF_GetBlockCounter(tempFileFds[0], &allBlocks));
 
-	do {
 
+	//Phase One - n
+	do {
+		
 		for (int i = 1; i < allBlocks - 1; i += (maxBlocks * (bufferSize - 1)) ) {
-			murgemgurge(tempFileFds[!index], tempFileFds[index], bufferSize, i, maxBlocks, fieldNo);
+			//i is the first blockCounter from all the teams we are going to merge
+			//Take !index as input, and index as output, and merge
+			//merge bufferSize - 1 teams of blocks
+			Merge(tempFileFds[!index], tempFileFds[index], bufferSize, i, maxBlocks, fieldNo);
+			//i now increases by the size of bufferSize - 1 teams
+			//so next i will be the first block of the next bufferSize - 1 teams we are going to to merge
 		}
 		
+		//close and remove the input file
 		SR_CloseFile(tempFileFds[!index]);
 		remove(tempFileNames[!index]);
 		
+		//create a new one
 		SR_CreateFile(tempFileNames[!index]);
 		SR_OpenFile(tempFileNames[!index], &tempFileFds[!index]);
 
+		//switch indices
 		index = !index;
+		//Now the new file we created above will be the new output file
+		//and the old file which was output will now be input
 
 		maxBlocks *= (bufferSize - 1);
 
+		//maxBlocks is the max size that a "team" of blocks can have
+		//if maxBlocks is more than all the blocks in file stop merging
 	} while(maxBlocks < allBlocks - 1);
 
+	//Change the last outputfile to output_fileName
 	SR_CloseFile(tempFileFds[!index]);
 	rename(tempFileNames[!index], output_filename);
 	
